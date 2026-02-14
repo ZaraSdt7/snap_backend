@@ -1,41 +1,43 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import express from 'express';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import cookieParser from 'cookie-parser';
+import { setupSwagger } from '../config/config.swagger';
 import helmet from 'helmet';
-import * as config from 'config';
-
-interface ServerOptions { port: number }
-
-const DEFAULT_PORT = Number(process.env.PORT) || 3000;
-
-function getServerOptions(): ServerOptions {
-  try {
-    if (config && typeof (config as any).has === 'function' && (config as any).has('server')) {
-      const cfg = (config as any).get('server');
-      return { port: Number(cfg?.port) || DEFAULT_PORT };
-    }
-  } catch {
-    // fall through to default
-  }
-  return { port: DEFAULT_PORT };
-}
+import cookieParser from 'cookie-parser';
 
 async function bootstrap(): Promise<void> {
-  const server = express();
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
-  app.use(cookieParser());
-  app.enableCors();
-  app.use(helmet());
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const logger = new Logger('Bootstrap');
+  const configService = app.get(ConfigService);
 
-  const { port } = getServerOptions();
+  const port = configService.get<number>('PORT') ?? 3000;
+  const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+
+  app.use(helmet());
+  app.use(cookieParser());
+  app.enableCors({ origin: true, credentials: true });
+
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: { enableImplicitConversion: true },
+  }));
+
+  setupSwagger(app, configService);
+  app.enableShutdownHooks();
 
   await app.listen(port);
-  console.log(`Server is running on port ${port}`);
+
+  logger.log(` Server running at http://localhost:${port}`);
+  logger.log(`Environment: ${nodeEnv}`);
+  logger.log(`Swagger Admin: http://localhost:${port}/admin/docs`);
+  logger.log(`Swagger Driver: http://localhost:${port}/driver/docs`);
+  logger.log(`Swagger Passenger: http://localhost:${port}/passenger/docs`);
 }
 
-bootstrap().catch((err) => {
-  console.error('Application failed to start', err);
+bootstrap().catch((error) => {
+  console.error(' Failed to start application:', error);
   process.exit(1);
 });
