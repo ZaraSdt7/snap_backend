@@ -29,7 +29,6 @@ import { Public } from '../../../common/public.decorator';
 import { AdminSignInInputDto, AdminSignInOutputDto, GetAdminProfileOutputDto } from '../../../dtos/admin/admin.dto';
 import { RequestWithUserData } from '../../../dtos/public.dto';
 
-
 @ApiTags('Admin: Auth')
 @UseGuards(AdminAuthGuard)
 @ApiCookieAuth()
@@ -42,9 +41,9 @@ import { RequestWithUserData } from '../../../dtos/public.dto';
 @UseInterceptors(ResponseInterceptor)
 export class AdminAuthController {
   private readonly logger = new Logger(AdminAuthController.name);
+  private readonly tokenName = 'auth_admin';
 
   constructor(private readonly authService: AdminAuthService) {}
-
 
   @Post('signin')
   @Public()
@@ -60,19 +59,22 @@ export class AdminAuthController {
       throw new Error('Token data missing after signIn');
     }
 
-    const { name, token, ttl } = signInData.tokenData;
-    res.cookie(name, token, {
-      maxAge: ttl,
+    const { accessToken, expiresIn } = signInData.tokenData;
+    res.cookie(this.tokenName, accessToken, {
+      maxAge: expiresIn,
       httpOnly: true,
       sameSite: 'strict',
       secure: process.env.NODE_ENV === 'production',
+      path: '/',
     });
 
-    delete signInData.tokenData; // Remove sensitive token info
-    return signInData;
+    return {
+      userType: 'ADMIN',
+      profile: signInData.profile,
+      session: signInData.session,
+    };
   }
 
- 
   @Get('profile')
   @ApiOperation({ summary: 'Get admin profile (guarded)' })
   async getProfile(
@@ -85,7 +87,6 @@ export class AdminAuthController {
       session: req.acc_session,
     };
   }
-
 
   @Post('signout')
   @ApiOperation({ summary: 'Sign out admin' })
@@ -103,7 +104,12 @@ export class AdminAuthController {
     await this.authService.signOut(session);
 
     // Clear cookie securely
-    res.clearCookie('auth_admin', { path: '/', httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+    res.clearCookie(this.tokenName, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
 
     return { success: true };
   }

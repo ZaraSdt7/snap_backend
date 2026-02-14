@@ -5,7 +5,6 @@ import { handleSrvCliResponse } from '../../../response/http.exeption.filter';
 import { AdminSessionModel, AdminSignInInputDto, AdminSignInOutputDto, GetAdminProfileOutputDto } from '../../../dtos/admin/admin.dto';
 import { MainServiceClient } from '../../../services/service.main';
 
-
 @Injectable()
 export class AdminAuthService {
   private readonly logger = new Logger(AdminAuthService.name);
@@ -15,7 +14,7 @@ export class AdminAuthService {
   async authorize(token: string): Promise<AuthorizeOutputDto> {
     this.logger.debug(`Authorizing admin token: ${token}`);
 
-    const response = await this.mainSrvCli.callAction({
+    const response = await this.mainSrvCli.callAction<AuthorizeOutputDto>({
       provider: 'ADMINS',
       action: 'authorize',
       query: { token },
@@ -30,7 +29,7 @@ export class AdminAuthService {
   async signIn(signInData: AdminSignInInputDto): Promise<AdminSignInOutputDto> {
     this.logger.log(`Signing in admin: ${signInData.email}`);
 
-    const response = await this.mainSrvCli.callAction({
+    const response = await this.mainSrvCli.callAction<AdminSignInOutputDto>({
       provider: 'ADMINS',
       action: 'signIn',
       query: signInData,
@@ -50,7 +49,7 @@ export class AdminAuthService {
 
     this.logger.log(`Signing out admin session: ${session.id}`);
 
-    const response = await this.mainSrvCli.callAction({
+    const response = await this.mainSrvCli.callAction<StatusResponseDto>({
       provider: 'ADMINS',
       action: 'signOut',
       query: { id: session.id },
